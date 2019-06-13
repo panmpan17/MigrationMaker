@@ -64,7 +64,7 @@ class MigrationMaker:
             conn.execute(sql)
 
     @classmethod
-    def table(cls, original, new):
+    def compare_table(cls, original, new):
         changed_column = {}
         added_column = []
         dropped_column = []
@@ -120,10 +120,8 @@ class MigrationMaker:
                 return "BOOLEAN"
             return None
 
-        if isinstance(type_, String):
-            if type_.length is None:
-                return "VARCHAR"
-            return f"VARCHAR({type_.length})"
+        if isinstance(type_, Text):
+            return "TEXT"
         elif isinstance(type_, Integer):
             return "INTEGER"
         elif isinstance(type_, DateTime):
@@ -132,8 +130,10 @@ class MigrationMaker:
             return "DATE"
         elif isinstance(type_, Time):
             return "TIME"
-        elif isinstance(type_, Text):
-            return "TEXT"
+        elif isinstance(type_, String):
+            if type_.length is None:
+                return "VARCHAR"
+            return f"VARCHAR({type_.length})"
         elif isinstance(type_, Boolean):
             return "BOOLEAN"
 
