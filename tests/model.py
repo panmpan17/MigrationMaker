@@ -6,7 +6,7 @@ meta1 = MetaData()
 user_t1 = Table(
     "user", meta1,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("name", String, nullable=False, unique=False),
+    Column("name", String(10), nullable=False, unique=False),
     Column("email", String, nullable=True, unique=True),
     Column("data", String))
 
@@ -35,3 +35,6 @@ post_t = Table(
 answer_t = Table(
     "answer", meta2,
     Column("id", Integer, primary_key=True, autoincrement=True))
+
+
+meta3 = MetaData()
