@@ -7,7 +7,7 @@ env/
 # Pip
 build/
 dist/
-protocolws.egg-info/
+*.egg-info/
 pip-log.txt
 pip-delete-this-directory.txt
 
