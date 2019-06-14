@@ -4,6 +4,7 @@ commands:
 	@echo "test"
 	@echo "install"
 	@echo "setup-venv"
+	@echo "build-upload"
 	@echo "build"
 	@echo "upload"
 	@echo "clean"
@@ -27,3 +28,10 @@ clean:
 # 	find . -name '*.pyo' -exec rm -f {} +
 # 	find . -name '__pycache__' -exec rm -fr {} +
 # 	find . -name '*~' -exec rm -f {} +
+
+build-upload: build upload clean
+
+build: clean
+	python $(ROOT_DIR)/setup.py sdist bdist_wheel
+upload:
+	python -m twine upload dist/*

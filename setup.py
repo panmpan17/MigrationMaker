@@ -14,9 +14,9 @@ setuptools.setup(
 
     description=("SQLAlachemy migration maker."
                  "Generate SQL command to auto migrate"),
-    description_content_type="text/markdown",
+    # description_content_type="text/markdown",
     long_description=long_description,
-    long_description_content_type="text/markdown",
+    # long_description_content_type="text/markdown",
     url="https://github.com/panmpan17/MigrationMaker",
 
     packages=setuptools.find_packages(exclude=["build", "dist", "docs",
