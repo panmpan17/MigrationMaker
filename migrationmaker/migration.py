@@ -20,7 +20,7 @@ ADD_COLUMN = """ALTER TABLE "{table}"
 DROP_COLUMN = """ALTER TABLE "{table}" DORP COLUMN {column};"""
 
 
-class MigrationMaker:
+class TableMigrationMaker:
     def __init__(self, table, changed, added, dropped):
         self.table = table
 
@@ -29,6 +29,10 @@ class MigrationMaker:
         self.dropped = dropped
 
         self.sqls = []
+
+    def check_altered(self):
+        return (len(self.changed) == 0 and len(self.added) == 0 and
+                len(self.dropped) == 0)
 
     def make_migration(self):
         tb_name = self.table.name
@@ -56,10 +60,10 @@ class MigrationMaker:
         for column in self.added:
             self.sqls.append(ADD_COLUMN.format(
                 table=tb_name, column=column.name,
-                type=MigrationMaker.get_sql_type_str(column.type),
-                contraint=MigrationMaker.get_constraint(column)))
+                type=TableMigrationMaker.get_sql_type_str(column.type),
+                contraint=TableMigrationMaker.get_constraint(column)))
 
-    def update_table(self, conn):
+    def migrate(self, conn):
         for sql in self.sqls:
             conn.execute(sql)
 
@@ -145,3 +149,40 @@ class MigrationMaker:
         if column.unique:
             con += " UNIQUE"
         return con
+
+
+class MetaDataMigration:
+    def __init__(self, metadata):
+        self.tables = dict(metadata.tables)
+
+        self.altered_tables = []
+        self.new_tables = []
+        self.dropped_table = []
+
+    def scan_new_metadata(self, metadata):
+        for table_name, table in self.tables.items():
+            # if metadata.tables[table_name]
+            if table_name not in metadata.tables:
+                self.dropped_table.append(table_name)
+                continue
+
+            compare = TableMigrationMaker.compare_table(
+                table, metadata.tables[table_name])
+
+            if compare.check_altered():
+                self.altered_tables.append(compare)
+
+        for table_name, table in dict(metadata.tables).items():
+            if table_name not in self.tables:
+                self.new_tables.append(table)
+
+    def migrate(self, conn, engine):
+        for table in self.new_tables:
+            table.create(engine)
+
+        for compare in self.altered_tables:
+            compare.make_migration()
+            compare.migrate(conn)
+
+        for table in self.dropped_table:
+            conn.execute(f"""DROP TABLE "{table}";""")

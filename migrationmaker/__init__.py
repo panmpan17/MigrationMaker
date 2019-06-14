@@ -1,4 +1,4 @@
-from .migration import MigrationMaker
+from .migration import TableMigrationMaker, MetaDataMigration
 
 
-__all__ = ["MigrationMaker"]
+__all__ = ["TableMigrationMaker", "MetaDataMigration"]
