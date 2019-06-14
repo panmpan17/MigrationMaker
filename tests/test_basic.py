@@ -68,6 +68,10 @@ class TestBasicMigration(unittest.TestCase):
         meta_migration = MetaDataMigration(meta1)
         meta_migration.scan_new_metadata(meta2)
 
+        self.assertEqual(len(meta_migration.altered_tables), 1)
+        self.assertEqual(len(meta_migration.dropped_table), 1)
+        self.assertEqual(len(meta_migration.new_tables), 1)
+
         self.assertFalse(meta_migration.check_same())
 
         meta_migration.migrate(conn, engine)
@@ -81,7 +85,6 @@ class TestBasicMigration(unittest.TestCase):
         meta_migration = MetaDataMigration(meta1)
         meta_migration.scan_new_metadata(meta)
 
-        print("Test two metadata")
         self.assertTrue(meta_migration.check_same())
 
     def test_version_ctl(self):

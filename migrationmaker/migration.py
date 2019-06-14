@@ -6,11 +6,15 @@ from sqlalchemy.sql import select
 from sqlalchemy.types import (String, Integer, DateTime, Date, Time, Text,
                               Boolean)
 
-ADD_UNIQUE = """ALTER TABLE "{table}"
-                ADD CONTRAINT {table}_{column}_key
+ADD_UNIQUE1 = """ALTER TABLE "{table}"
+                ADD CONTRAINT "{table}_{column}_key"
                 UNIQUE ({column});"""
-DROP_UNIQUE = """ALTER TABLE "{table}"
-                 DROP CONTRAINT {table}_{column}_key;"""
+ADD_UNIQUE2 = """CREATE UNIQUE INDEX "{table}_{column}_key"
+                 ON "{table}" ({column});"""
+
+DROP_UNIQUE1 = """ALTER TABLE "{table}"
+                 DROP CONTRAINT "{table}_{column}_key";"""
+DROP_UNIQUE2 = """DROP INDEX "{table}_{column}_key";"""
 
 SET_NOT_NULL = """ALTER TABLE "{table}"
                   ALTER COLUMN {column}
@@ -20,9 +24,9 @@ DROP_NOT_NULL = """ALTER TABLE "{table}"
                    DROP NOT NULL;"""
 
 ADD_COLUMN = """ALTER TABLE "{table}"
-                ADD COLUN {column} {type}{constraint}"""
+                ADD COLUMN {column} {type}{constraint}"""
 
-DROP_COLUMN = """ALTER TABLE "{table}" DORP COLUMN {column};"""
+DROP_COLUMN = """ALTER TABLE "{table}" DROP COLUMN {column};"""
 
 
 class ColumnTool:
@@ -115,29 +119,41 @@ class TableMigrationMaker:
         for name, changed in self.changed.items():
             if "unique" in changed:
                 if changed["unique"]:
-                    self.sqls.append(ADD_UNIQUE.format(table=tb_name,
-                                                       column=name))
+                    self.sqls.append((
+                        ADD_UNIQUE1.format(table=tb_name, column=name),
+                        ADD_UNIQUE2.format(table=tb_name, column=name),))
                 else:
-                    self.sqls.append(DROP_UNIQUE.format(table=tb_name,
-                                                        column=name))
+                    self.sqls.append((
+                        DROP_UNIQUE1.format(table=tb_name, column=name),
+                        DROP_UNIQUE2.format(table=tb_name, column=name)))
 
             if "nullable" in changed:
                 if changed["nullable"]:
-                    self.sqls.append(SET_NOT_NULL.format(table=tb_name,
-                                                         column=name))
-                else:
                     self.sqls.append(DROP_NOT_NULL.format(table=tb_name,
                                                           column=name))
+                else:
+                    self.sqls.append(SET_NOT_NULL.format(table=tb_name,
+                                                         column=name))
 
         for column in self.added:
             self.sqls.append(ADD_COLUMN.format(
                 table=tb_name, column=column.name,
                 type=ColumnTool.get_sql_type_str(column.type),
-                contraint=ColumnTool.get_constraint(column)))
+                constraint=ColumnTool.get_constraint(column)))
 
     def migrate(self, conn):
         for sql in self.sqls:
-            conn.execute(sql)
+            if isinstance(sql, tuple):
+                for s in sql:
+                    try:
+                        conn.execute(s)
+                        break
+                    except Exception:
+                        pass
+
+                continue
+            else:
+                conn.execute(sql)
 
     @classmethod
     def compare_table(cls, original, new):
@@ -171,9 +187,11 @@ class TableMigrationMaker:
         changed = {}
 
         if original.nullable != new.nullable:
-            changed["nullable"] = new.nullable
+            if original.nullable is True or new.nullable is True:
+                changed["nullable"] = new.nullable
         if original.unique != new.unique:
-            changed["unique"] = new.unique
+            if original.unique is True or new.unique is True:
+                changed["unique"] = new.unique
 
         return changed
 
@@ -217,8 +235,12 @@ class MetaDataTool:
 
                 if "Nullable" in args:
                     c.nullable = True
+                else:
+                    c.nullable = False
                 if "Unique" in args:
                     c.unique = True
+                else:
+                    c.unique = False
 
                 table.append_column(c)
 
@@ -246,7 +268,8 @@ class MetaDataMigration:
             compare = TableMigrationMaker.compare_table(
                 table, metadata.tables[tb_name])
 
-            if compare.check_same():
+            if not compare.check_same():
+                print(tb_name)
                 self.altered_tables.append(compare)
 
         for tb_name, table in dict(metadata.tables).items():
