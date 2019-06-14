@@ -46,6 +46,7 @@ class TestBasicMigration(unittest.TestCase):
         self.compare = TableMigrationMaker.compare_table(user_t1, user_t2)
         new_column = self.compare.added[0]
         type_ = new_column.type
+
         self.assertEqual(new_column.name, "password")
         self.assertTrue(isinstance(type_, String))
         self.assertEqual(type_.length, 32)
@@ -56,12 +57,11 @@ class TestBasicMigration(unittest.TestCase):
         engine = create_engine(TestBasicMigration.db_uri)
         conn = engine.connect()
 
-        print("Delete all table in db")
+        print("Preparing ...")
         table_names = inspect(engine).get_table_names()
         for table in table_names:
             conn.execute(f"""DROP TABLE "{table}";""")
 
-        print("Create default model")
         meta1.create_all(engine)
 
         print("Migrate with new model")
@@ -89,25 +89,29 @@ class TestBasicMigration(unittest.TestCase):
 
     def test_version_ctl(self):
         version_ctl = VersionControl(TestBasicMigration.db_uri)
-        print("Check version control in db")
+        print("Check version control")
         version_ctl.check_version_ctl_exist()
         version_ctl.connect()
 
-        print("Insert default version to db")
-        version_ctl.insert_version(MetaDataTool.to_string(meta1))
-        version_ctl.insert_version(MetaDataTool.to_string(meta2))
+        meta1_str = MetaDataTool.to_string(meta1)
+        meta2_str = MetaDataTool.to_string(meta2)
 
-        print("Get latest version to db")
-        version = version_ctl.get_latest_version()
+        version_ctl.insert_version(meta1_str)
+        latest_version = version_ctl.get_latest_version()
+        self.assertEqual(meta1_str, latest_version)
 
-        old_meta = MetaDataTool.string_to_metadata(version)
-        meta_migration = MetaDataMigration(old_meta)
-        meta_migration.scan_new_metadata(meta3)
-
-        print("Migrate")
-        meta_migration.migrate(version_ctl.conn, version_ctl.engine)
+        version_ctl.insert_version(meta2_str)
+        latest_version = version_ctl.get_latest_version(is_old_metadata=True)
+        self.assertEqual(meta2_str, latest_version)
 
         version_ctl.close()
+
+        version_ctl.scan_new_metadata(meta3)
+
+        version_ctl.report_status()
+
+        print("Migrate")
+        version_ctl.migrate()
 
 
 if __name__ == "__main__":

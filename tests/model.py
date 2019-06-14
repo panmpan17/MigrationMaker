@@ -38,3 +38,14 @@ answer_t = Table(
 
 
 meta3 = MetaData()
+
+user_t3 = Table(
+    "user", meta3,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(10), nullable=False, unique=False),
+    Column("email", String, nullable=True, unique=True),
+    Column("data", String))
+
+activity_t = Table(
+    "activity", meta3,
+    Column("id", Integer, primary_key=True, autoincrement=True))

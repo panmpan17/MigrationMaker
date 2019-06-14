@@ -1,5 +1,6 @@
 from .migration import (TableMigrationMaker, MetaDataMigration,
-                        MetaDataTool, ColumnTool, VersionControl)
+                        MetaDataTool, ColumnTool)
+from .version_ctl import VersionControl
 
 
 __all__ = [

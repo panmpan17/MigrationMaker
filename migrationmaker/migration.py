@@ -1,8 +1,6 @@
 import re
 
-from datetime import datetime
-from sqlalchemy import MetaData, Table, Column, create_engine
-from sqlalchemy.sql import select
+from sqlalchemy import MetaData, Table, Column
 from sqlalchemy.types import (String, Integer, DateTime, Date, Time, Text,
                               Boolean)
 
@@ -98,6 +96,7 @@ class ColumnTool:
 
 class TableMigrationMaker:
     def __init__(self, table, changed, added, dropped):
+        self.name = table.name
         self.table = table
 
         self.changed = changed
@@ -105,6 +104,29 @@ class TableMigrationMaker:
         self.dropped = dropped
 
         self.sqls = []
+
+    def report_status(self, prefix=""):
+        for col in self.dropped:
+            print(prefix, "-", col, "dropped")
+
+        for col in self.added:
+            print(prefix, "-", col.name, "added")
+
+        for col, changes in self.changed.items():
+            description = ""
+
+            if "unique" in changes:
+                if changes["unique"]:
+                    description += "add UNIQUE "
+                else:
+                    description += "drop UNIQUE "
+            if "nullable" in changes:
+                if changes["nullable"]:
+                    description += "drop NOT NULL"
+                else:
+                    description += "add NOT NULL"
+
+            print(prefix, "-", col, description)
 
     def check_same(self):
         return (len(self.changed) == 0 and len(self.added) == 0 and
@@ -249,6 +271,7 @@ class MetaDataTool:
 
 class MetaDataMigration:
     def __init__(self, metadata):
+        self.metadata = metadata
         self.tables = dict(metadata.tables)
 
         self.altered_tables = []
@@ -269,7 +292,6 @@ class MetaDataMigration:
                 table, metadata.tables[tb_name])
 
             if not compare.check_same():
-                print(tb_name)
                 self.altered_tables.append(compare)
 
         for tb_name, table in dict(metadata.tables).items():
@@ -286,45 +308,3 @@ class MetaDataMigration:
 
         for table in self.dropped_table:
             conn.execute(f"""DROP TABLE "{table}";""")
-
-
-class VersionControl:
-    def __init__(self, db_uri):
-        self.engine = create_engine(db_uri)
-        self.verison_ctl_t = None
-        self.conn = None
-
-    def check_version_ctl_exist(self):
-        self.verison_ctl_t = Table(
-            "version_ctl", MetaData(),
-            Column("id", Integer, primary_key=True, autoincrement=True),
-            Column("version", String),
-            Column("create_at", DateTime, default=datetime.utcnow))
-
-        self.verison_ctl_t.create(self.engine)
-
-    def connect(self):
-        self.conn = self.engine.connect()
-
-    def close(self):
-        if self.conn is not None:
-            self.conn.close()
-            self.conn = None
-
-    def insert_version(self, version_str):
-        rst = self.conn.execute(self.verison_ctl_t.insert(), {
-            "version": version_str})
-
-        if rst.is_insert:
-            return True
-        return False
-
-    def get_latest_version(self):
-        select_sql = select([self.verison_ctl_t.c.version]).order_by(
-            self.verison_ctl_t.c.create_at.desc())
-
-        row = self.conn.execute(select_sql).fetchone()
-
-        if row is not None:
-            return row["version"]
-        return None
