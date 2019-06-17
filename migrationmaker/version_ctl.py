@@ -6,18 +6,37 @@ from sqlalchemy.types import Integer, String, DateTime
 from sqlalchemy.sql import select
 
 
+def connect_db(f):
+    def wrapper(self, *args, **kwargs):
+        self._connect()
+        resault = f(self, *args, kwargs)
+        self._close()
+        return resault
+    return wrapper
+
+
 class VersionControl(MetaDataMigration):
     def __init__(self, db_uri):
         self.engine = create_engine(db_uri)
         self.verison_ctl_t = None
         self.conn = None
 
-        self.metadata = None
-        self.tables = {}
+        self._old_metadata = None
+        self._new_metadata = None
+        self._tables = {}
 
         self.altered_tables = []
         self.new_tables = []
         self.dropped_table = []
+
+    def _connect(self):
+        if self.conn is None:
+            self.conn = self.engine.connect()
+
+    def _close(self):
+        if self.conn is not None:
+            self.conn.close()
+            self.conn = None
 
     def report_status(self):
         print("-" * 10, "Status", "-" * 10)
@@ -43,17 +62,18 @@ class VersionControl(MetaDataMigration):
         print("-" * 28)
 
     def assign_metadata(self, metadata):
-        self.metadata = metadata
-        self.tables = dict(metadata.tables)
+        self._old_metadata = metadata
+        self._tables = dict(metadata.tables)
 
-    def migrate(self):
-        self.connect()
+    def new_version(self, new_metadata):
+        self._new_metadata = new_metadata
 
+        super().scan_new_metadata(new_metadata)
+
+    @connect_db
+    def migrate(self, *args, **kwargs):
         super().migrate(self.conn, self.engine)
-
-        self.insert_version(MetaDataTool.to_string(self.metadata))
-
-        self.close()
+        self.db_insert_version(MetaDataTool.to_string(self._new_metadata))
 
     def check_version_ctl_exist(self):
         self.verison_ctl_t = Table(
@@ -64,16 +84,8 @@ class VersionControl(MetaDataMigration):
 
         self.verison_ctl_t.create(self.engine)
 
-    def connect(self):
-        if self.conn is None:
-            self.conn = self.engine.connect()
-
-    def close(self):
-        if self.conn is not None:
-            self.conn.close()
-            self.conn = None
-
-    def insert_version(self, version_str):
+    @connect_db
+    def db_insert_version(self, version_str, *args, **kwargs):
         rst = self.conn.execute(self.verison_ctl_t.insert(), {
             "version": version_str})
 
@@ -81,7 +93,9 @@ class VersionControl(MetaDataMigration):
             return True
         return False
 
-    def get_latest_version(self, is_old_metadata=False):
+    @connect_db
+    def get_latest_version(self, is_old_metadata=False, *args, **kwargs):
+
         select_sql = select([self.verison_ctl_t.c.version]).order_by(
             self.verison_ctl_t.c.create_at.desc())
 

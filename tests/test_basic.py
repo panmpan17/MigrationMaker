@@ -91,27 +91,28 @@ class TestBasicMigration(unittest.TestCase):
         version_ctl = VersionControl(TestBasicMigration.db_uri)
         print("Check version control")
         version_ctl.check_version_ctl_exist()
-        version_ctl.connect()
 
         meta1_str = MetaDataTool.to_string(meta1)
         meta2_str = MetaDataTool.to_string(meta2)
 
-        version_ctl.insert_version(meta1_str)
+        version_ctl.db_insert_version(meta1_str)
         latest_version = version_ctl.get_latest_version()
         self.assertEqual(meta1_str, latest_version)
 
-        version_ctl.insert_version(meta2_str)
+        version_ctl.db_insert_version(meta2_str)
         latest_version = version_ctl.get_latest_version(is_old_metadata=True)
         self.assertEqual(meta2_str, latest_version)
 
-        version_ctl.close()
-
-        version_ctl.scan_new_metadata(meta3)
+        version_ctl.new_version(meta3)
 
         version_ctl.report_status()
 
         print("Migrate")
         version_ctl.migrate()
+
+        latest_version = version_ctl.get_latest_version()
+        self.assertEqual(MetaDataTool.to_string(meta3),
+                         latest_version)
 
 
 if __name__ == "__main__":

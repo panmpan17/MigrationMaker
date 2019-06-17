@@ -271,8 +271,8 @@ class MetaDataTool:
 
 class MetaDataMigration:
     def __init__(self, metadata):
-        self.metadata = metadata
-        self.tables = dict(metadata.tables)
+        self._old_metadata = metadata
+        self._tables = dict(metadata.tables)
 
         self.altered_tables = []
         self.new_tables = []
@@ -283,7 +283,7 @@ class MetaDataMigration:
                 len(self.dropped_table) == 0)
 
     def scan_new_metadata(self, metadata):
-        for tb_name, table in self.tables.items():
+        for tb_name, table in self._tables.items():
             if tb_name not in metadata.tables:
                 self.dropped_table.append(tb_name)
                 continue
@@ -295,7 +295,7 @@ class MetaDataMigration:
                 self.altered_tables.append(compare)
 
         for tb_name, table in dict(metadata.tables).items():
-            if tb_name not in self.tables:
+            if tb_name not in self._tables:
                 self.new_tables.append(table)
 
     def migrate(self, conn, engine):
