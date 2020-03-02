@@ -238,6 +238,27 @@ class MetaDataTool:
 
             string += ";"
         return string
+    
+    @staticmethod
+    def to_strings(metadata):
+        table_str = {}
+
+        for tb_name, table in dict(metadata.tables).items():
+            columns = []
+
+            for column in table.columns:
+                string = column.name.capitalize()
+                string += ColumnTool.get_sql_type_str(column.type).capitalize()
+
+                if column.nullable:
+                    string += "Nullable"
+                if column.unique:
+                    string += "Unique"
+                columns.append(string)
+
+            table_str[tb_name] = ",".join(columns)
+
+        return table_str
 
     @staticmethod
     def string_to_metadata(string):
@@ -268,6 +289,31 @@ class MetaDataTool:
 
         return temp_metadata
 
+    @staticmethod
+    def strings_to_metadata(table_str):
+        temp_metadata = MetaData()
+        
+        for table_name, data in table_str.items():
+            table = Table(table_name, temp_metadata)
+
+            columns_datas = data.split(",")
+            for column_data in columns_datas:
+                args = re.findall(r"[A-Z][^A-Z]+", column_data)
+                c = Column(args[0].lower(),
+                           ColumnTool.get_type(args[1].upper()))
+                
+                if "Nullable" in args:
+                    c.nullable = True
+                else:
+                    c.nullable = False
+                if "Unique" in args:
+                    c.unique = True
+                else:
+                    c.unique = False
+                
+                table.append_column(c)
+        
+        return temp_metadata
 
 class MetaDataMigration:
     def __init__(self, metadata):
@@ -283,6 +329,10 @@ class MetaDataMigration:
                 len(self.dropped_table) == 0)
 
     def scan_new_metadata(self, metadata):
+        self.altered_tables.clear()
+        self.new_tables.clear()
+        self.dropped_table.clear()
+
         for tb_name, table in self._tables.items():
             if tb_name not in metadata.tables:
                 self.dropped_table.append(tb_name)

@@ -38,6 +38,16 @@ class VersionControl(MetaDataMigration):
             self.conn.close()
             self.conn = None
 
+    def check_version_ctl_exist(self):
+        self.verison_ctl_t = Table(
+            "version_ctl", MetaData(),
+            Column("id", Integer, primary_key=True, autoincrement=True),
+            Column("tablename", String),
+            Column("columns", String),
+            Column("create_at", DateTime, default=datetime.utcnow))
+
+        self.verison_ctl_t.create(self.engine)
+
     def report_status(self):
         print("-" * 10, "Status", "-" * 10)
         if len(self.dropped_table) > 0:
@@ -66,6 +76,10 @@ class VersionControl(MetaDataMigration):
         self._tables = dict(metadata.tables)
 
     def new_version(self, new_metadata):
+        if self._new_metadata is not None:
+            self._old_metadata = self._new_metadata
+            self._tables = dict(self._old_metadata.tables)
+
         self._new_metadata = new_metadata
 
         super().scan_new_metadata(new_metadata)
@@ -73,21 +87,17 @@ class VersionControl(MetaDataMigration):
     @connect_db
     def migrate(self, *args, **kwargs):
         super().migrate(self.conn, self.engine)
-        self.db_insert_version(MetaDataTool.to_string(self._new_metadata))
 
-    def check_version_ctl_exist(self):
-        self.verison_ctl_t = Table(
-            "version_ctl", MetaData(),
-            Column("id", Integer, primary_key=True, autoincrement=True),
-            Column("version", String),
-            Column("create_at", DateTime, default=datetime.utcnow))
+        table_strings = MetaDataTool.to_strings(self._new_metadata)
+        datas = []
 
-        self.verison_ctl_t.create(self.engine)
+        for table_name, column_data in table_strings.items():
+            datas.append({"tablename": table_name, "columns": column_data})
 
-    @connect_db
-    def db_insert_version(self, version_str, *args, **kwargs):
-        rst = self.conn.execute(self.verison_ctl_t.insert(), {
-            "version": version_str})
+        for table_name in self.dropped_table:
+            datas.append({"tablename": table_name, "columns": "DROP"})
+
+        rst = self.conn.execute(self.verison_ctl_t.insert(), datas)
 
         if rst.is_insert:
             return True
@@ -95,16 +105,29 @@ class VersionControl(MetaDataMigration):
 
     @connect_db
     def get_latest_version(self, is_old_metadata=False, *args, **kwargs):
+        rows = self.conn.execute(select([self.verison_ctl_t])).fetchall()
 
-        select_sql = select([self.verison_ctl_t.c.version]).order_by(
-            self.verison_ctl_t.c.create_at.desc())
+        datas = {}
 
-        row = self.conn.execute(select_sql).fetchone()
+        for row in rows:
+            if row["tablename"] in datas:
+                if row["create_at"] < datas[row["tablename"]]["create_at"]:
+                    continue
 
-        if row is not None:
-            data = row["version"]
-            if is_old_metadata:
-                self.assign_metadata(MetaDataTool.string_to_metadata(data))
+            datas[row["tablename"]] = {
+                "columns": row["columns"],
+                "create_at": row["create_at"],
+            }
 
-            return data
-        return None
+        dropped_table = []
+        for key, value in datas.items():
+            datas[key] = value["columns"]
+            if value["columns"] == "DROP":
+                dropped_table.append(key)
+        
+        for tablename in dropped_table:
+            datas.pop(tablename)
+
+        if is_old_metadata:
+            self.assign_metadata(MetaDataTool.strings_to_metadata(datas))
+        return datas
