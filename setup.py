@@ -5,7 +5,7 @@ with open("README.md", "r") as file:
 
 setuptools.setup(
     name="sqlalchemy-migration-maker",
-    version="0.3",
+    version="0.4",
     author="Michael Pan",
     author_email="panmpan@gmail.com",
 

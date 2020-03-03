@@ -52,17 +52,13 @@ migrate.py
 
 ```python
 from .model import Base
-from sqlalchemy.exc import OperationalError, ProgrammingError
 from migrationmaker import VersionControl
+
+version_ctl = VersionCtrol("{DB_URI}")
 
 # 檢查版本控制是否存在於 DB
 # Check version ctrl exist in DB
-try:
-    version_ctlr = VersionCtrol("{DB_URI}")
-except ProgrammingError:
-    # 存在過
-    # exist
-    pass
+version_ctl.check_version_ctl_exist()
 
 # 取回舊版本
 # Retrieve old version
